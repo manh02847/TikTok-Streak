@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Kiểm tra người nhận hoặc gửi tin'
+        description: 'Kiểm tra cấu hình, người nhận hoặc gửi tin'
         type: choice
         default: dry-run
         options:
           - dry-run
+          - check-config
           - send
 
 permissions:
@@ -34,8 +35,18 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Check configuration
+        env:
+          COOKIES_JSON: ${{ secrets.COOKIES_JSON }}
+          RECIPIENTS_JSON: ${{ secrets.RECIPIENTS_JSON }}
+          ACCOUNT_USERNAME: ${{ secrets.ACCOUNT_USERNAME }}
+          MESSAGE: ${{ vars.MESSAGE }}
+          BOT_ENABLED: ${{ vars.BOT_ENABLED || 'false' }}
+        run: npm run check-config
       - run: npx playwright install --with-deps chromium
+        if: inputs.mode != 'check-config'
       - name: Run bot
+        if: inputs.mode != 'check-config'
         env:
           COOKIES_JSON: ${{ secrets.COOKIES_JSON }}
           RECIPIENTS_JSON: ${{ secrets.RECIPIENTS_JSON }}

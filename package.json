@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node index.js",
     "dry-run": "node index.js --dry-run",
+    "check-config": "node index.js --check-config",
     "test": "node --test test/*.test.js",
     "test:browser": "node --test test/browser.test.js"
   },

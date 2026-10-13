@@ -25,7 +25,7 @@ Vào **Settings → Secrets and variables → Actions → Secrets → New reposi
 | Tên | Giá trị |
 | --- | --- |
 | `ACCOUNT_USERNAME` | Username tài khoản TikTok của bạn, không dùng tên hiển thị. |
-| `COOKIES_JSON` | Danh sách cookie của phiên TikTok đã đăng nhập trên web, có `sessionid` còn sống. Hỗ trợ mảng cookie hoặc `storageState` của Playwright. |
+| `COOKIES_JSON` | Danh sách cookie của phiên TikTok đã đăng nhập trên web, có `sessionid` hoặc `sessionid_ss` còn sống. Hỗ trợ mảng cookie hoặc `storageState` của Playwright. |
 | `RECIPIENTS_JSON` | Danh sách username người cần giữ chuỗi, theo mẫu bên dưới. |
 
 Mẫu danh sách đơn giản:
@@ -45,11 +45,22 @@ Mẫu có câu riêng và gợi ý tên trong danh sách chat để tìm nhanh h
 
 `chatName` chỉ giúp tìm nhanh. Bot luôn kiểm tra lại username bằng link hồ sơ ở đầu cuộc chat. Những người này cần có cuộc trò chuyện 1–1 trong hộp thư TikTok Web; bản này chưa gửi cho nhóm.
 
-Cookie cho phép truy cập phiên đăng nhập. Chỉ lưu vào Secret của repo bạn; không gửi trong chat, README, commit hoặc issue. Có thể xuất cookie từ trình duyệt trên máy bạn bằng công cụ bạn tin cậy; chỉ cần định dạng JSON, không cần đưa mật khẩu TikTok cho bot.
+Cookie cho phép truy cập phiên đăng nhập. Chỉ lưu vào Secret của repo bạn; không gửi trong chat, README, commit hoặc issue. Không cần đưa mật khẩu TikTok cho bot.
+
+Để lấy cookie:
+
+1. Cài [Cookie-Editor của Christophe Gagnier](https://cookie-editor.com/) cho trình duyệt. Trang chính thức có link Chrome, Edge, Firefox và Safari trên iPhone.
+2. Đăng nhập **TikTok Web** đúng tài khoản, mở [hộp thư](https://www.tiktok.com/messages?lang=en) và kiểm tra bạn đọc được cuộc chat.
+3. Mở Cookie-Editor ngay tại tab TikTok, cấp quyền cho trang này nếu được hỏi. Chọn **Export → JSON**, sao chép toàn bộ danh sách, không chỉ một giá trị `sessionid`. Không chọn Header String hoặc Netscape.
+4. Vào Secrets của repo, sửa `COOKIES_JSON`, dán nguyên JSON rồi bấm **Update secret**. Không đặt trong dấu nháy ngoài hoặc khối Markdown.
+
+Máy dùng để lấy cookie có thể đóng sau đó; bot vẫn chạy trên GitHub. Cookie hết hạn hoặc bị TikTok thu hồi thì cần xuất lại.
 
 ### 2. Chạy kiểm tra trước
 
 Vào **Actions → TikTok Streak → Run workflow**, chọn `dry-run`.
+
+Có thể chọn `check-config` trước để kiểm tra định dạng ba Secrets, số người nhận và cookie phiên có áp dụng đúng địa chỉ hộp thư không. Chế độ này không mở TikTok hoặc gửi tin và không in giá trị cookie/username. Kết quả thành công chỉ chứng minh cấu hình đúng; không xác nhận phiên còn được TikTok chấp nhận. Mỗi lượt chạy bot cũng kiểm tra cấu hình trước khi tải trình duyệt.
 
 Bot kiểm tra tài khoản, người nhận và ô soạn trống. Không gõ tin nhắn, không bấm gửi, không sửa trạng thái chống trùng. Các dòng log dùng mã người nhận thay cho username; thứ tự tương ứng danh sách cấu hình.
 

@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { username, loadConfig, normalizeCookies, localDay, recipientKey } = require('../lib/config');
+const { spawnSync } = require('node:child_process');
+const { username, loadConfig, normalizeCookies, requireSessionForUrl, localDay, recipientKey } = require('../lib/config');
 const { Journal, LocalState, GitHubState } = require('../lib/state');
 
 test('chọn nhiều người bằng username, loại trùng và giữ tin riêng', () => {
@@ -27,6 +28,41 @@ test('cookie phiên còn sống được giữ, cookie hết hạn và domain ng
   assert.deepEqual(cookies.map(cookie => cookie.name), ['sessionid', 'sid']);
   assert.equal(cookies[1].sameSite, 'Lax');
   assert.throws(() => normalizeCookies([{ name: 'sessionid', value: 'fixture', domain: '.tiktok.com', expires: 10 }], 1000));
+});
+
+test('cookie đăng nhập phải có phạm vi bao gồm trang hộp thư thực tế', () => {
+  const inbox = 'https://www.tiktok.com/messages?lang=en';
+  const session = { name: 'sessionid', value: 'fixture', domain: '.tiktok.com', path: '/' };
+  assert.doesNotThrow(() => requireSessionForUrl(normalizeCookies([session]), inbox));
+  assert.doesNotThrow(() => requireSessionForUrl(normalizeCookies([{ ...session, domain: 'www.tiktok.com', hostOnly: true, path: '/messages' }]), inbox));
+  assert.doesNotThrow(() => requireSessionForUrl(normalizeCookies([{ ...session, domain: 'tiktok.com', hostOnly: false }]), inbox));
+  for (const invalid of [
+    { ...session, domain: 'tiktok.com', hostOnly: true },
+    { ...session, domain: '.ads.tiktok.com' },
+    { ...session, path: '/api' },
+    { ...session, path: '/message' },
+    { ...session, value: ' ' },
+  ]) assert.throws(() => requireSessionForUrl(normalizeCookies([invalid]), inbox), /không áp dụng/);
+});
+
+test('check-config không cần trình duyệt và không in giá trị Secrets', () => {
+  const result = spawnSync(process.execPath, ['index.js', '--check-config'], {
+    cwd: path.join(__dirname, '..'),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      BOT_ENABLED: 'false',
+      ACCOUNT_USERNAME: 'fixture_owner',
+      RECIPIENTS_JSON: '["fixture_recipient"]',
+      COOKIES_JSON: JSON.stringify([{ name: 'sessionid', value: 'fixture_private_session', domain: '.tiktok.com' }]),
+      PLAYWRIGHT_BROWSERS_PATH: '/missing-browser-for-config-check',
+      GITHUB_STEP_SUMMARY: '',
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /1 người nhận/);
+  assert.match(result.stdout, /Chưa kiểm tra TikTok/);
+  for (const privateValue of ['fixture_owner', 'fixture_recipient', 'fixture_private_session']) assert.equal(result.stdout.includes(privateValue), false);
 });
 
 test('ngày chống trùng đổi lúc nửa đêm Việt Nam thay vì UTC', () => {
