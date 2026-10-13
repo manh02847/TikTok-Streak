@@ -1,14 +1,14 @@
 {
-  "message": "API",
-  "useQuotesAPi": true,
-  "totalUsers": 14,
-  "actionDelayMs": 300,
-  "typeDelayMs": 0,
-  "afterSendDelayMs": 500,
-  "afterClickDelayMs": 300,
-  "pageLoadDelayMs": 5000,
-  "finishDelayMs": 3000,
-  "headless": false,
-  "bannerFont": "DOS Rebel",
-  "targetUrl": "https://www.tiktok.com/business-suite/messages?lang=en&from=homepage"
+  "enabled": false,
+  "accountUsername": "",
+  "recipients": [],
+  "message": "🔥",
+  "timeZone": "Asia/Ho_Chi_Minh",
+  "targetUrl": "https://www.tiktok.com/messages?lang=en",
+  "headless": true,
+  "betweenRecipientsMs": 6000,
+  "maxScrolls": 80,
+  "navigationTimeoutMs": 45000,
+  "confirmationTimeoutMs": 15000,
+  "sendKey": "Enter"
 }

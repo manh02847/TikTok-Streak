@@ -1,186 +1,77 @@
-const puppeteer = require("puppeteer");
-const fs = require("fs");
-const path = require("path");
-const figlet = require("figlet");
-const moment = require("moment-timezone");
-moment.tz.setDefault("Asia/Jakarta");
-const { bold, red, yellow, blue, magenta, cyan, green } = require("kleur/colors");
+const fs = require('node:fs');
+const { loadConfig, loadCookies, recipientKey, localDay } = require('./lib/config');
+const { LocalState, GitHubState, Journal } = require('./lib/state');
+const { TikTok } = require('./lib/tiktok');
 
-
-
-const args = process.argv.slice(2);
-const isDebug = args.includes("--debug");
-const CREDENTIALS_FILE = path.join(__dirname, "cookies.json");
-const CONFIG_FILE = path.join(__dirname, "config.json");
-const loadConfig = () => {
-  const fromEnv = process.env.CONFIG_JSON;
-  if (fromEnv) {
-    try {
-      return JSON.parse(fromEnv);
-    } catch {
-      throw new Error("Invalid CONFIG_JSON environment variable");
-    }
+async function main() {
+  const dryRun = process.argv.includes('--dry-run');
+  const config = loadConfig();
+  if (!config.enabled && !dryRun) {
+    console.log('Bot đang tắt. Cấu hình rồi bật BOT_ENABLED trong GitHub Actions Variables.');
+    return;
   }
-  if (!fs.existsSync(CONFIG_FILE))
-    throw new Error("config.json tidak ditemukan");
+  if (!config.accountUsername || !config.recipients.length) throw new Error('Thiếu ACCOUNT_USERNAME hoặc RECIPIENTS_JSON.');
+  const cookies = loadCookies();
+  const { chromium } = require('playwright');
+  const browser = await chromium.launch({ headless: config.headless });
+  const report = { verified: 0, sent: 0, skipped: 0, failed: 0, uncertain: 0 };
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
-  } catch {
-    throw new Error("Invalid config.json");
-  }
-};
-const CONFIG = loadConfig();
-if (process.env.HEADLESS !== undefined) CONFIG.headless = process.env.HEADLESS === "true";
-if (process.env.TOTAL_USERS !== undefined) CONFIG.totalUsers = Number(process.env.TOTAL_USERS);
-if (process.env.MESSAGE !== undefined) CONFIG.message = process.env.MESSAGE;
-const BROWSER_CONFIG = {
-  args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  headless: CONFIG.headless,
-};
-if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-  BROWSER_CONFIG.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-}
-const fetchQuote = async () => {
-  try {
-    const res = await fetch("https://dummyjson.com/quotes/random");
-    const data = await res.json();
-    return `"${data.quote}" — ${data.author}`;
-  } catch {
-    return null;
-  }
-};
-
-
-
-const main = async () => {
-  const banner = figlet.textSync("TikTok Streak", { font: CONFIG.bannerFont, horizontalLayout: "default", verticalLayout: "default" });
-  console.clear();
-  console.log(bold(cyan(banner)));
-  console.log(yellow("\n[+] Made with 🚬 and ☕ by Saturia."));
-  if (CONFIG.useQuotesAPi) console.log(blue("[+] Message: Random quote (dummyjson.com)"));
-  else console.log(blue("[+] Message:", CONFIG.message));
-  console.log(magenta("[+] Delay:", `${CONFIG.actionDelayMs} ms\n`));
-  console.log(yellow(`[+] Mode: ${isDebug ? "Debug" : "Normal"}\n`));
-
-
-
-  let credentials;
-  if (process.env.COOKIES_JSON) {
-    try {
-      const data = JSON.parse(process.env.COOKIES_JSON);
-      credentials = Array.isArray(data) ? { cookies: data } : { cookies: [data] };
-      console.log(green("[+] Cookies loaded from COOKIES_JSON env var"));
-    } catch {
-      throw new Error("Invalid COOKIES_JSON environment variable");
-    }
-  } else if (fs.existsSync(CREDENTIALS_FILE)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, "utf8"));
-      credentials = Array.isArray(data) ? { cookies: data } : { cookies: [data] };
-      console.log(yellow("[+] Cookies loaded from cookies.json (local only)"));
-    } catch {
-      throw new Error("Invalid session file");
-    }
-  } else {
-    throw new Error("Session not found. Set COOKIES_JSON env var or create cookies.json");
-  }
-
-
-
-  let browser;
-  try {
-    browser = await puppeteer.launch(BROWSER_CONFIG);
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.setCookie(...credentials.cookies);
-    if (isDebug) console.log(yellow("[+] Membuka halaman TikTok messages..."));
-    await page.goto(CONFIG.targetUrl, { waitUntil: "networkidle2", timeout: 60000 });
-    if (isDebug) console.log(yellow("[+] Halaman loaded, tunggu UI siap..."));
-    await new Promise((r) => setTimeout(r, CONFIG.pageLoadDelayMs));
-
-
-
-    let success = 0,
-    failed = 0;
-    const iframe = await page.$("iframe[src*='/messages?allow_label=true&lang=en&scene=business']");
-    if (!iframe) return;
-    const frame = await iframe.contentFrame();
-    if (!frame) return;
-    try {
-      await frame.waitForSelector("._TUXModal-wrapper", { visible: true, timeout: 3000});
-      await frame.evaluate(() => {
-        const modal = document.querySelector("._TUXModal-wrapper");
-        if (!modal) return;
-        const rect = modal.getBoundingClientRect();
-        const x = Math.max(1, rect.left - 10);
-        const y = Math.max(1, rect.top - 10);
-        document.elementFromPoint(x, y)?.click();
-      });
-    } catch (e) {
-    }
-
-
-
-    for (let i = 0; i < CONFIG.totalUsers; i++) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US' });
+    await context.addCookies(cookies);
+    const page = await context.newPage();
+    const tiktok = new TikTok(page, config);
+    await tiktok.open();
+    await tiktok.verifyAccount(config.accountUsername);
+    const store = process.env.GITHUB_ACTIONS === 'true'
+      ? new GitHubState(process.env.GITHUB_REPOSITORY, process.env.GITHUB_TOKEN, process.env.GITHUB_SHA)
+      : new LocalState('state.json');
+    const journal = new Journal(store);
+    for (const recipient of config.recipients) {
+      const key = recipientKey(config.accountUsername, recipient.username);
+      const day = localDay(config.timeZone);
+      const label = key.slice(0, 8);
+      let claimed = false;
+      let attempted = false;
       try {
-        const userSelector = `div[data-index="${i}"] [data-e2e="dm-new-conversation-item"]`;
-        await frame.waitForSelector(userSelector, { timeout: 3000 });
-        await frame.click(userSelector);
-        const nicknameSelector = `div[data-index="${i}"] [data-e2e="dm-new-conversation-nickname"]`;
-        const username = await frame.evaluate((sel) => {
-          return document.querySelector(sel)?.textContent || `user${i}`;
-        }, nicknameSelector);
-        console.log(yellow(`\n[${i + 1}/${CONFIG.totalUsers}] Mengirim pesan ke: ${username}`));
-        await new Promise((r) => setTimeout(r, 500));
-        if (isDebug) console.log(yellow("  [~] Mencari editor..."));
-        await frame.waitForSelector("div.notranslate.public-DraftEditor-content", { timeout: 3000 });
-        const editor = await frame.$("div.notranslate.public-DraftEditor-content");
-        if (!editor) throw new Error("Editor not found");
-        await editor.click();
-        await new Promise((r) => setTimeout(r, CONFIG.afterClickDelayMs));
-        let message = CONFIG.message;
-        if (CONFIG.useQuotesAPi) {
-          const quote = await fetchQuote();
-          if (!quote) throw new Error("Gagal fetch quote");
-          message = quote;
-          if (isDebug) console.log(cyan(`  [~] Quote: ${quote}`));
+        if (!dryRun && await journal.blocked(key, day)) {
+          report.skipped++;
+          console.log(`${label}: đã gửi hoặc đã thử gửi hôm nay, bỏ qua.`);
+          continue;
         }
-        await page.keyboard.type(message, { delay: CONFIG.typeDelayMs });
-        await new Promise((r) => setTimeout(r, CONFIG.afterSendDelayMs));
-        if (isDebug) console.log(blue("  [~] Mengirim dengan Ctrl+Enter..."));
-        await page.keyboard.down("Control");
-        await page.keyboard.press("Enter");
-        await page.keyboard.up("Control");
-        await new Promise((r) => setTimeout(r, CONFIG.afterSendDelayMs));
-        console.log(green(`  [✓] Terkirim!`));
-        success++;
-      } catch (e) {
-        if (isDebug) console.log(red(`  [✗] Error: ${e.message}`));
-        failed++;
+        await tiktok.selectRecipient(recipient.username, recipient.chatName);
+        await tiktok.prepare(recipient.username);
+        if (dryRun) {
+          report.verified++;
+          console.log(`${label}: đúng người nhận, ô soạn trống; chưa nhập hoặc gửi tin.`);
+          continue;
+        }
+        if (!await journal.claim(key, day)) { report.skipped++; continue; }
+        claimed = true;
+        const result = await tiktok.send(recipient.username, recipient.message || config.message, () => { attempted = true; });
+        await journal.finish(key, day, result ? 'sent' : 'uncertain');
+        claimed = false;
+        report[result ? 'sent' : 'uncertain']++;
+        console.log(`${label}: ${result ? 'đã thấy tin mới trên giao diện' : 'chưa xác nhận được, không tự gửi lại'}.`);
+      } catch (error) {
+        if (claimed) await journal.finish(key, day, attempted ? 'uncertain' : 'failed');
+        report[attempted ? 'uncertain' : 'failed']++;
+        console.log(`${label}: ${error.code || 'CHECK_FAILED'}; không gửi tiếp cho người này.`);
+        if (error.code === 'AUTH_REQUIRED' || error.code === 'BOT_BLOCKED') throw error;
       }
-
-
-
-      if (i < CONFIG.totalUsers - 1) {
-        if (isDebug) console.log(yellow(`  [~] Tunggu ${CONFIG.actionDelayMs} ms...`));
-        await new Promise((r) => setTimeout(r, CONFIG.actionDelayMs));
-      }
+      if (!dryRun) await new Promise(resolve => setTimeout(resolve, config.betweenRecipientsMs));
     }
-
-
-
-    console.log(green(`\n[+] SELESAI!`));
-    console.log(blue(`[+] Success: ${success}`));
-    console.log(red(`[+] Failed: ${failed}\n`));
-    await new Promise((r) => setTimeout(r, CONFIG.finishDelayMs));
-  } catch (e) {
-    if (isDebug) console.error(red("[!] Fatal error:", e.message));
-    process.exit(1);
   } finally {
-    if (browser) await browser.close();
+    await browser.close();
+    const summary = `Đúng người: ${report.verified}; tin mới trên giao diện: ${report.sent}; bỏ qua: ${report.skipped}; lỗi: ${report.failed}; chưa rõ kết quả: ${report.uncertain}.`;
+    console.log(summary);
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Auto Chuỗi TikTok\n\n${dryRun ? 'Chế độ kiểm tra, không gửi tin.' : 'Mỗi người tối đa một lần thử gửi trong ngày.'}\n\n${summary}\n`);
   }
-};
+  if (report.failed || report.uncertain) process.exitCode = 1;
+}
 
+if (require.main === module) main().catch(error => {
+  console.error(`Bot dừng: ${error.code || error.message}`);
+  process.exitCode = 1;
+});
 
-
-main();
+module.exports = { main };

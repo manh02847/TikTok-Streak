@@ -1,3 +1,9 @@
-node_modules
+node_modules/
 cookies.json
 .env
+state.json
+state.json.tmp
+contacts.json
+*.log
+test-results/
+playwright-report/

@@ -1,240 +1,109 @@
-# TikTok Streak Bot
+# Auto Chuỗi TikTok
 
-<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/67aef3dc-6cc5-48d8-8d3c-f8a40d999ac2" />
+Bản custom từ [KurniawanSatria/TikTok-Streak](https://github.com/KurniawanSatria/TikTok-Streak), chạy trên GitHub Actions. Máy tính và điện thoại của bạn không phải mở để bot chạy.
 
-- Automatic TikTok streak bot: sends messages to many conversations via Puppeteer
-- Runs entirely on GitHub Actions, no need to keep your PC on
-- Behavior configured via `config.json`, cookies via GitHub Secrets, Discord notifications
+## Có gì trong bản này
 
-> [!WARNING]
-> **This TikTok Streak Bot is illegal. Use it at your own risk.**
->
-> This project is provided for educational and experimental purposes only. By using this bot, you acknowledge that you are responsible for your own actions and any consequences that may result from its use.
+- Chọn nhiều người bằng username TikTok, không gửi theo thứ tự cuộc chat.
+- Xác minh tài khoản đăng nhập và username trong đầu cuộc chat trước khi gõ/gửi.
+- Tin nhắn mặc định `🔥`, có thể đặt câu riêng cho từng người.
+- Lịch mặc định khoảng **21:17 mỗi ngày theo giờ Việt Nam**.
+- Lưu chống trùng trên nhánh `bot-state`, nên chạy lại workflow vẫn không gửi lại cùng ngày.
+- Mặc định bot **tắt**. Có chế độ `dry-run` chỉ kiểm tra, không nhập hay gửi tin.
+- Không xóa bản nháp có sẵn. Không công khai cookie hoặc danh sách người nhận trong code.
 
-## Features
+Bot gửi một tin theo lịch cho danh sách được chọn, không phải AI trả lời nội dung trò chuyện. Người kia vẫn cần tương tác để duy trì chuỗi. Xác nhận gửi dựa trên tin mới xuất hiện trong giao diện và ô soạn đã trống, không phải cam kết giao thành công hoặc chuỗi chắc chắn tăng.
 
-- Login using TikTok session cookies (env `COOKIES_JSON` or local `cookies.json`)
-- Automatically send messages to N conversations with configurable delays
-- Static message mode or random quotes from `dummyjson.com/quotes/random`
-- Automatic cron twice a day on GitHub Actions + manual `workflow_dispatch`
-- Run status notifications to a Discord webhook
-- Docker image for self-hosted runs
+## Cấu hình một lần trên GitHub
 
-## Repository Structure
+Repo của bạn: **[manh02847/TikTok-Streak](https://github.com/manh02847/TikTok-Streak)**.
 
-| Path | Description |
-| :--- | :--- |
-| `.github/` | Actions workflows, CodeQL, Dependabot |
-| `config.json` | All bot behavior options (message, delays, etc.) |
-| `index.js` | Puppeteer bot: launch, inject cookies, send messages |
-| `package.json` | npm manifest: Puppeteer, figlet, kleur dependencies |
-| `Dockerfile` | Self-hosted container image |
+### 1. Thêm ba Secrets
 
-## Docker
+Vào **Settings → Secrets and variables → Actions → Secrets → New repository secret**.
 
-```bash
-docker build -t tiktok-streak .
-docker run --rm \
-  -e COOKIES_JSON="$(cat cookies.json)" \
-  -e HEADLESS=true \
-  tiktok-streak
+| Tên | Giá trị |
+| --- | --- |
+| `ACCOUNT_USERNAME` | Username tài khoản TikTok của bạn, không dùng tên hiển thị. |
+| `COOKIES_JSON` | Danh sách cookie của phiên TikTok đã đăng nhập trên web, có `sessionid` còn sống. Hỗ trợ mảng cookie hoặc `storageState` của Playwright. |
+| `RECIPIENTS_JSON` | Danh sách username người cần giữ chuỗi, theo mẫu bên dưới. |
+
+Mẫu danh sách đơn giản:
+
+```json
+["@ban_a", "@ban_b", "@ban_c"]
 ```
 
-Config can be overridden via environment variables: `CONFIG_JSON` (full JSON), `HEADLESS`, `TOTAL_USERS`, `MESSAGE`, `COOKIES_JSON`.
-
-For a schedule, run the container on a cron job, e.g.:
-
-```cron
-0 9,17 * * * docker run --rm -e COOKIES_JSON='[...]' tiktok-streak
-```
-
-## Setup
-
-### 1. Fork or clone
-
-Fork this repo to your GitHub account, or clone locally and push to your own repo.
-
-> **Note:** Using a public repository is safe because sensitive cookies are stored in
-> GitHub Actions Secrets, not in the code.
-
-### 2. Configure `COOKIES_JSON`
-
-The bot authenticates using TikTok session cookies.
-
-- **Never** put cookies directly in the source code or commit them to the repo
-- Store them as a GitHub Actions Secret
-
-#### Export cookies
-
-Use a cookie export extension such as EditThisCookie. Expected format:
+Mẫu có câu riêng và gợi ý tên trong danh sách chat để tìm nhanh hơn:
 
 ```json
 [
-  {
-    "name": "sessionid",
-    "value": "xxx",
-    "domain": ".tiktok.com"
-  }
+  {"username":"@ban_a", "chatName":"Tên hiển thị A", "message":"🔥"},
+  {"username":"@ban_b", "chatName":"Tên hiển thị B", "message":"giữ chuỗi nhé 🔥"}
 ]
 ```
 
-#### Add the secret
+`chatName` chỉ giúp tìm nhanh. Bot luôn kiểm tra lại username bằng link hồ sơ ở đầu cuộc chat. Những người này cần có cuộc trò chuyện 1–1 trong hộp thư TikTok Web; bản này chưa gửi cho nhóm.
 
-1. Open your repo on GitHub
-2. Go to **Settings > Secrets and variables > Actions**
-3. Click **New repository secret**
-4. Fill in:
-   - **Name:** `COOKIES_JSON`
-   - **Secret:** the exported cookies (can be minified to a single line)
-5. Save
+Cookie cho phép truy cập phiên đăng nhập. Chỉ lưu vào Secret của repo bạn; không gửi trong chat, README, commit hoặc issue. Có thể xuất cookie từ trình duyệt trên máy bạn bằng công cụ bạn tin cậy; chỉ cần định dạng JSON, không cần đưa mật khẩu TikTok cho bot.
 
-Optional: set the `DISCORD_WEBHOOK` secret for run status notifications.
+### 2. Chạy kiểm tra trước
 
-> [!CAUTION]
-> **Treat your TikTok cookies like a password.**
->
-> Anyone who obtains valid session cookies may potentially access your TikTok
-> session. Never publish them, commit them to Git, or share them with anyone.
+Vào **Actions → TikTok Streak → Run workflow**, chọn `dry-run`.
 
-### 3. Configure `config.json`
+Bot kiểm tra tài khoản, người nhận và ô soạn trống. Không gõ tin nhắn, không bấm gửi, không sửa trạng thái chống trùng. Các dòng log dùng mã người nhận thay cho username; thứ tự tương ứng danh sách cấu hình.
 
-```json
-{
-  "message": "API",
-  "useQuotesAPi": true,
-  "totalUsers": 14,
-  "actionDelayMs": 300,
-  "typeDelayMs": 0,
-  "afterSendDelayMs": 500,
-  "afterClickDelayMs": 300,
-  "pageLoadDelayMs": 5000,
-  "finishDelayMs": 3000,
-  "headless": false,
-  "bannerFont": "DOS Rebel",
-  "targetUrl": "https://www.tiktok.com/messages?lang=en"
-}
+Nếu nhận `ACCOUNT_NOT_VERIFIED`, cookie chưa đúng tài khoản hoặc TikTok đổi vị trí link Profile. Nếu nhận `RECIPIENT_NOT_FOUND` / `INBOX_NOT_FOUND`, hộp thư hoặc cấu trúc trang cần kiểm tra lại. Đừng bật gửi thật trước khi kiểm tra qua.
+
+### 3. Bật lịch gửi
+
+Vào **Settings → Secrets and variables → Actions → Variables → New repository variable**:
+
+| Tên | Giá trị |
+| --- | --- |
+| `BOT_ENABLED` | `true` để bật; `false` để dừng. |
+| `MESSAGE` | Không bắt buộc. Câu mặc định cho người không có `message` riêng, ví dụ `🔥`. |
+
+Sau đó có thể chạy **Run workflow → send** để thử ngay. Các lần chạy trong cùng ngày vẫn dùng chung trạng thái chống trùng.
+
+Không cần tạo thêm GitHub PAT. Workflow dùng `GITHUB_TOKEN` của chính repo để ghi trạng thái.
+
+## Đổi giờ
+
+Sửa dòng `cron` trong `.github/workflows/TikTok-Streak.yml`. Lịch cron dùng UTC, Việt Nam nhanh hơn 7 giờ:
+
+| Giờ Việt Nam | Cron |
+| --- | --- |
+| 20:17 | `17 13 * * *` |
+| 21:17 | `17 14 * * *` |
+| 22:17 | `17 15 * * *` |
+
+GitHub có thể chạy trễ hoặc bỏ lượt khi hệ thống quá tải; giờ này là lịch yêu cầu, không bảo đảm chính xác đến phút. Xem lịch sử Actions để biết lần chạy thực tế. Có thể thêm một lượt dự phòng trước nửa đêm; chống trùng sẽ bỏ qua người đã có lượt gửi.
+
+## Khi bot gặp lỗi
+
+| Kết quả | Cách xử lý |
+| --- | --- |
+| `DRAFT_NOT_EMPTY` | Cuộc chat có bản nháp. Tự xử lý bản nháp rồi chạy kiểm tra lại. |
+| `AUTH_REQUIRED` / `BOT_BLOCKED` | Bot dừng nếu TikTok yêu cầu đăng nhập hoặc CAPTCHA. Cập nhật phiên đăng nhập hợp lệ khi cần. |
+| Ghi trạng thái GitHub lỗi | Bot không bắt đầu gửi nếu chưa lưu được lượt gửi. |
+| Chưa xác nhận được sau khi bấm gửi | Không tự gửi lại trong ngày, tránh lặp. Kiểm tra cuộc chat và tự rep nếu cần. |
+| Chưa tới bước bấm gửi mà lỗi | Lượt đó có thể thử lại ở lần chạy sau. |
+
+Không xóa nhánh `bot-state` giữa ngày: đó là dữ liệu dùng để tránh gửi trùng. Nhánh chỉ lưu mã SHA-256 từ tài khoản/người nhận, ngày và trạng thái, không lưu nội dung tin hay username ở dạng rõ.
+
+## Kiểm tra code
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+npm test
 ```
 
-| Key | Description | Default |
-| :-- | :-- | :-- |
-| `message` | Message sent to each conversation | `"API"` |
-| `useQuotesAPi` | `true` replaces the message with a random dummyjson quote | `true` |
-| `totalUsers` | Number of conversations to process | `14` |
-| `actionDelayMs` | Delay between conversations (ms) | `300` |
-| `typeDelayMs` | Delay per character while typing (ms) | `0` |
-| `afterSendDelayMs` | Delay after typing and after sending (ms) | `500` |
-| `afterClickDelayMs` | Delay after clicking an element (ms) | `300` |
-| `pageLoadDelayMs` | Wait for the page to be ready (ms) | `5000` |
-| `finishDelayMs` | Delay before the browser closes (ms) | `3000` |
-| `headless` | Run Chromium headless | `false` |
-| `bannerFont` | figlet banner font | `"DOS Rebel"` |
-| `targetUrl` | TikTok messaging URL | TikTok messages |
+Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, mất xác nhận, workflow chạy lại và ngày Việt Nam qua nửa đêm.
 
-## Executables
+Mã nguồn đã được kiểm tra trên trang mô phỏng. Cần chạy `dry-run` bằng phiên TikTok của bạn để xác nhận giao diện thực tế trước khi bật bot. Nếu TikTok đổi HTML, có thể chỉnh các selector trong `lib/tiktok.js` hoặc ghi đè bằng trường `selectors` trong `config.json`.
 
-- No separate executables; the only tool is `index.js`, run via `node` or GitHub Actions
+## Nguồn
 
-### `index.js`
-
-- Launches Chromium via Puppeteer, injects cookies from env or file
-- Opens the messaging page, dismisses the initial modal, loops message sending
-- Sends with `Ctrl+Enter`, logs success/failure per user, summary at the end
-
-- Run normally:
-  ```bash
-  npm install
-  node index.js
-  ```
-
-- Run with detailed per-step logs:
-  ```bash
-  node index.js --debug
-  ```
-
-- Run with local cookies without env:
-  ```bash
-  COOKIES_JSON="$(cat cookies.json)" node index.js
-  ```
-
-> **Note:** Local mode uses `cookies.json` (already gitignored) when the
-> `COOKIES_JSON` env var is not set. Both accept a cookie array (normal) or a
-> single cookie object which is auto-wrapped.
-
-## Workflows
-
-### Via GitHub Actions (recommended)
-
-- Trigger: cron twice a day in `.github/workflows/TikTok-Streak.yml`:
-  - `15:00 UTC` = 22:00 WIB
-  - `17:00 UTC` = 00:00 WIB
-- Manual at any time: **Actions > TikTok Streak > Run workflow**
-- Discord notification is sent after every run, success or failure
-
-### Local run
-
-- Preferred for debugging; see Executables above
-- If headless is blocked by TikTok, see Troubleshooting
-
-## Architecture
-
-- Single one-way flow of a bot run, from trigger to notification:
-
-```mermaid
-flowchart LR
-  A[Trigger: cron or workflow_dispatch] --> B[Actions runner: windows-latest]
-  B --> C[npm install dependencies]
-  C --> D[node index.js: load cookies]
-  D --> E[Puppeteer: launch Chromium no-sandbox]
-  E --> F[Set cookies, open targetUrl]
-  F --> G[messages iframe, dismiss modal]
-  G --> H[Loop totalUsers: click, type, Ctrl+Enter]
-  H --> I[Success/Failed summary]
-  I --> J[Discord webhook: run status]
-```
-
-- `index.js` module:
-  - Config: `loadConfig()` reads `config.json` or `CONFIG_JSON` env, errors on invalid
-  - Credentials: env `COOKIES_JSON` first, then local `cookies.json`;
-    cookie array or single object auto-wrapped
-  - Navigation: viewport 1280x800, `networkidle2`, wait `pageLoadDelayMs`
-  - Modal: click outside `_TUXModal-wrapper` if it appears within 3 seconds
-  - Loop: selector `div[data-index="i"]` per conversation; per-user errors are
-    caught individually, one failure does not stop the run
-  - Message: static from `config.message` or random quote via `fetchQuote()`
-- Actions workflow `.github/workflows/TikTok-Streak.yml`:
-  - `runs-on: windows-latest`, Node 22 via `actions/setup-node`
-  - Secret `COOKIES_JSON` injected into the run step env
-  - Discord notification via `tsickert/discord-webhook`, `if: always()`
-
-## Troubleshooting
-
-### Cookies expired
-
-- Re-export cookies from your browser
-- Replace the `COOKIES_JSON` secret
-- Re-run the workflow
-
-### TikTok UI changed
-
-- The selectors in `index.js` need updating
-- Likely candidates: messages iframe selector, `data-e2e` conversation item,
-  editor selector `public-DraftEditor-content`
-- Check with `node index.js --debug` to see which step fails
-
-### Workflow fails
-
-- Check logs in **GitHub > Actions > TikTok Streak**
-- The logs show which step failed
-
-### Headless blocked by TikTok
-
-- Try setting `"headless": false`
-- Or increase `pageLoadDelayMs` and `actionDelayMs`
-
-## Disclaimer
-
-- This project is **not affiliated with, endorsed by, or sponsored by TikTok**
-- The repo owner provides this project as-is without liability for its use
-- You are responsible for the risks, limits, and consequences of using this bot
-
-> **Use responsibly. You've been warned.**
+Fork giữ lịch sử và giấy phép MIT của tác giả gốc. Bản custom dùng Playwright, bỏ chế độ gửi N chat đầu và dịch thông báo sang tiếng Việt. Selector đầu cuộc chat được đối chiếu với mã nguồn công khai của [Jon2G/TiktokStreakSaver](https://github.com/Jon2G/TiktokStreakSaver).

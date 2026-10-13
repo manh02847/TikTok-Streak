@@ -1,26 +1,17 @@
 {
   "name": "tiktok-streak",
-  "version": "1.0.0",
-  "description": "Automatically send TikTok streak messages via Puppeteer with configurable delays and chat limits.",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Auto giữ chuỗi TikTok trên GitHub Actions với người nhận cố định và chống gửi trùng.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dry-run": "node index.js --dry-run",
+    "test": "node --test test/*.test.js",
+    "test:browser": "node --test test/browser.test.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/KurniawanSatria/TikTok-Streak.git"
-  },
-  "keywords": [],
-  "author": "",
+  "engines": { "node": ">=22" },
+  "repository": { "type": "git", "url": "git+https://github.com/manh02847/TikTok-Streak.git" },
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/KurniawanSatria/TikTok-Streak/issues"
-  },
-  "homepage": "https://github.com/KurniawanSatria/TikTok-Streak#readme",
-  "dependencies": {
-    "figlet": "^1.11.4",
-    "kleur": "^4.1.5",
-    "moment-timezone": "^0.6.2",
-    "puppeteer": "^25.10.0"
-  }
+  "dependencies": { "playwright": "1.62.1" }
 }

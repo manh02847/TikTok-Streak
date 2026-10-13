@@ -2,37 +2,51 @@ name: TikTok Streak
 
 on:
   schedule:
-    - cron: "0 15 * * *"
-    - cron: "0 17 * * *"
+    - cron: '17 14 * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Kiểm tra người nhận hoặc gửi tin'
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - send
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tiktok-streak
+  cancel-in-progress: false
 
 jobs:
   streak:
-    runs-on: windows-latest
-
+    if: github.event_name == 'workflow_dispatch' || vars.BOT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-
-      - run: npm install
-
-      - name: Run TikTok Streak
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run bot
         env:
           COOKIES_JSON: ${{ secrets.COOKIES_JSON }}
-        run: node index.js
-
-      - name: Discord Notification
-        if: always()
-        uses: tsickert/discord-webhook@v7.0.0
-        with:
-          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-          username: TikTok Streak
-          content: |
-            **TikTok Streak**
-            Status: `${{ job.status }}`
-            Repository: `${{ github.repository }}`
-            Trigger: `${{ github.event_name }}`
-            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RECIPIENTS_JSON: ${{ secrets.RECIPIENTS_JSON }}
+          ACCOUNT_USERNAME: ${{ secrets.ACCOUNT_USERNAME }}
+          MESSAGE: ${{ vars.MESSAGE }}
+          BOT_ENABLED: ${{ vars.BOT_ENABLED || 'false' }}
+          BOT_MODE: ${{ inputs.mode || 'send' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$BOT_MODE" = "dry-run" ]; then
+            npm run dry-run
+          else
+            npm start
+          fi
