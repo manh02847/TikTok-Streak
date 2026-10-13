@@ -1,5 +1,5 @@
 const fs = require('node:fs');
-const { loadConfig, loadCookies, requireSessionForUrl, recipientKey, localDay } = require('./lib/config');
+const { loadConfig, loadCookies, requireSessionForUrl, recipientKey, sendWindow, chooseMessage } = require('./lib/config');
 const { LocalState, GitHubState, Journal } = require('./lib/state');
 const { TikTok } = require('./lib/tiktok');
 
@@ -18,6 +18,7 @@ async function main() {
     const summary = [
       'ACCOUNT_USERNAME: định dạng hợp lệ.',
       `RECIPIENTS_JSON: hợp lệ, ${config.recipients.length} người nhận sau khi loại trùng.`,
+      `Nội dung chung: ${config.messages.length} câu luân phiên; ${config.recipients.filter(item => item.message !== undefined).length} người dùng câu cố định; ${config.recipients.filter(item => item.messages !== undefined).length} người dùng danh sách riêng.`,
       `COOKIES_JSON: JSON hợp lệ, ${cookies.length} cookie TikTok chưa hết hạn theo dữ liệu xuất; có cookie phiên áp dụng cho trang tin nhắn.`,
       'Chưa kiểm tra TikTok có chấp nhận phiên đăng nhập. Chạy dry-run để kiểm tra thực tế.',
     ].join('\n');
@@ -43,15 +44,15 @@ async function main() {
     const journal = new Journal(store);
     for (const recipient of config.recipients) {
       const key = recipientKey(config.accountUsername, recipient.username);
-      const day = localDay(config.timeZone);
+      const { day, slot, label: slotLabel } = sendWindow(config.timeZone);
       const label = key.slice(0, 8);
       let claimed = false;
       let attempted = false;
       try {
-        if (!dryRun && await journal.blocked(key, day)) {
+        if (!dryRun && await journal.blocked(key, day, slot)) {
           report.skipped++;
           const previous = (await journal.load()).entries[key];
-          console.log(`${label}: ${previous.status === 'sent' ? 'đã thấy tin còn trong lịch sử hôm nay' : 'đã thử gửi hôm nay nhưng chưa xác nhận được'}; bỏ qua.`);
+          console.log(`${label}: khung ${slotLabel} ${day} ${previous.slots[slot] === 'sent' ? 'đã thấy tin còn trong lịch sử' : 'đã thử gửi nhưng chưa xác nhận được'}; bỏ qua.`);
           continue;
         }
         await tiktok.selectRecipient(recipient.username, recipient.chatName);
@@ -61,15 +62,17 @@ async function main() {
           console.log(`${label}: đúng người nhận, ô soạn trống; chưa nhập hoặc gửi tin.`);
           continue;
         }
-        if (!await journal.claim(key, day)) { report.skipped++; continue; }
+        const previous = (await journal.load()).entries[key];
+        const selected = chooseMessage(config, recipient, previous?.lastMessageIndex, key);
+        if (!await journal.claim(key, day, slot, selected.index)) { report.skipped++; continue; }
         claimed = true;
-        const result = await tiktok.send(recipient.username, recipient.message || config.message, () => { attempted = true; });
-        await journal.finish(key, day, result ? 'sent' : 'uncertain');
+        const result = await tiktok.send(recipient.username, selected.message, () => { attempted = true; });
+        await journal.finish(key, day, result ? 'sent' : 'uncertain', slot);
         claimed = false;
         report[result ? 'sent' : 'uncertain']++;
-        console.log(`${label}: ${result ? 'đã thấy tin mới còn trong lịch sử sau khi mở lại cuộc chat' : 'chưa xác nhận được trên lịch sử sau khi gửi, không tự gửi lại'}.`);
+        console.log(`${label}: khung ${slotLabel} ${day}; ${result ? 'đã thấy tin mới còn trong lịch sử sau khi mở lại cuộc chat' : 'chưa xác nhận được trên lịch sử sau khi gửi, không tự gửi lại trong khung này'}.`);
       } catch (error) {
-        if (claimed) await journal.finish(key, day, attempted ? 'uncertain' : 'failed');
+        if (claimed) await journal.finish(key, day, attempted ? 'uncertain' : 'failed', slot);
         report[attempted ? 'uncertain' : 'failed']++;
         console.log(`${label}: ${error.code || 'CHECK_FAILED'}; không gửi tiếp cho người này.`);
         if (error.code === 'AUTH_REQUIRED' || error.code === 'BOT_BLOCKED') throw error;
@@ -82,7 +85,7 @@ async function main() {
       ? `Đúng người: ${report.verified}; tin mới trên giao diện: ${report.sent}; bỏ qua: ${report.skipped}; lỗi: ${report.failed}; chưa rõ kết quả: ${report.uncertain}.`
       : 'Dừng trước khi xác minh tài khoản; chưa kiểm tra người nhận hoặc gửi tin.';
     console.log(summary);
-    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Auto Chuỗi TikTok\n\n${dryRun ? 'Chế độ kiểm tra, không gửi tin.' : 'Mỗi người tối đa một lần thử gửi trong ngày.'}\n\n${summary}\n`);
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Auto Chuỗi TikTok\n\n${dryRun ? 'Chế độ kiểm tra, không gửi tin.' : 'Mỗi người tối đa một lần thử gửi trong mỗi khung sáng/trưa/tối, tối đa ba khung mỗi ngày.'}\n\n${summary}\n`);
   }
   if (report.failed || report.uncertain) process.exitCode = 1;
 }

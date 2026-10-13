@@ -2,7 +2,7 @@ name: TikTok Streak
 
 on:
   schedule:
-    - cron: '17 14 * * *'
+    - cron: '17 1,5,13 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -41,6 +41,7 @@ jobs:
           RECIPIENTS_JSON: ${{ secrets.RECIPIENTS_JSON }}
           ACCOUNT_USERNAME: ${{ secrets.ACCOUNT_USERNAME }}
           MESSAGE: ${{ vars.MESSAGE }}
+          MESSAGES_JSON: ${{ vars.MESSAGES_JSON }}
           BOT_ENABLED: ${{ vars.BOT_ENABLED || 'false' }}
         run: npm run check-config
       - run: npx playwright install --with-deps chromium
@@ -52,6 +53,7 @@ jobs:
           RECIPIENTS_JSON: ${{ secrets.RECIPIENTS_JSON }}
           ACCOUNT_USERNAME: ${{ secrets.ACCOUNT_USERNAME }}
           MESSAGE: ${{ vars.MESSAGE }}
+          MESSAGES_JSON: ${{ vars.MESSAGES_JSON }}
           BOT_ENABLED: ${{ vars.BOT_ENABLED || 'false' }}
           BOT_MODE: ${{ inputs.mode || 'send' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

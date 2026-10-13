@@ -189,7 +189,7 @@ test('mất phiên sau khi hiện tin tạm phải báo AUTH_REQUIRED và giữ 
     await journal.finish(key, '2026-10-14', 'uncertain');
     assert.equal(server.attempts, 1);
     assert.deepEqual(server.sent, []);
-    assert.equal((await store.load()).entries[key].status, 'uncertain');
+    assert.equal((await store.load()).entries[key].slots.morning, 'uncertain');
     assert.equal(await new Journal(store).claim(key, '2026-10-14'), false);
   } finally { await browser.close(); }
 });

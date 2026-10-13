@@ -6,9 +6,9 @@ Bản custom từ [KurniawanSatria/TikTok-Streak](https://github.com/KurniawanSa
 
 - Chọn nhiều người bằng username TikTok, không gửi theo thứ tự cuộc chat.
 - Xác minh tài khoản đăng nhập và username trong đầu cuộc chat trước khi gõ/gửi.
-- Tin nhắn mặc định `🔥`, có thể đặt câu riêng cho từng người.
-- Lịch mặc định khoảng **21:17 mỗi ngày theo giờ Việt Nam**.
-- Lưu chống trùng trên nhánh `bot-state`, nên chạy lại workflow vẫn không gửi lại cùng ngày.
+- Mặc định có **12 câu ngắn luân phiên**; mỗi người giữ vị trí câu riêng qua các lần chạy. Có thể đặt danh sách câu riêng cho từng người.
+- Lịch mặc định khoảng **08:17, 12:17 và 20:17 mỗi ngày theo giờ Việt Nam**.
+- Lưu chống trùng trên nhánh `bot-state`: mỗi người có một lượt cho từng khung sáng, trưa, tối; tối đa ba khung mỗi ngày.
 - Mặc định bot **tắt**. Có chế độ `dry-run` chỉ kiểm tra, không nhập hay gửi tin.
 - Không xóa bản nháp có sẵn. Không công khai cookie hoặc danh sách người nhận trong code.
 
@@ -34,16 +34,18 @@ Mẫu danh sách đơn giản:
 ["@ban_a", "@ban_b", "@ban_c"]
 ```
 
-Mẫu có câu riêng và gợi ý tên trong danh sách chat để tìm nhanh hơn:
+Mẫu có danh sách câu riêng và gợi ý tên trong danh sách chat để tìm nhanh hơn:
 
 ```json
 [
-  {"username":"@ban_a", "chatName":"Tên hiển thị A", "message":"🔥"},
-  {"username":"@ban_b", "chatName":"Tên hiển thị B", "message":"giữ chuỗi nhé 🔥"}
+  {"username":"@ban_a", "chatName":"Tên hiển thị A", "messages":["Giữ chuỗi nha 🔥", "Điểm danh giữ chuỗi 😄", "Chấm chuỗi nè ✨"]},
+  {"username":"@ban_b", "chatName":"Tên hiển thị B", "messages":["Ghé giữ chuỗi chút nè 😄", "Chuỗi vẫn tiếp tục nha 🔥"]}
 ]
 ```
 
 `chatName` chỉ giúp tìm nhanh. Bot luôn kiểm tra lại username bằng link hồ sơ ở đầu cuộc chat. Những người này cần có cuộc trò chuyện 1–1 trong hộp thư TikTok Web; bản này chưa gửi cho nhóm.
+
+Danh sách username đơn giản dùng chung 12 câu trong `config.json`. Trường `messages` riêng ghi đè danh sách chung. Nếu dùng trường cũ `message`, người đó tiếp tục nhận một câu cố định; chỉ dùng một trong hai trường. Mỗi danh sách nhận 1–50 câu, mỗi câu 1–500 ký tự trên một dòng, tự loại câu trùng.
 
 Cookie cho phép truy cập phiên đăng nhập. Chỉ lưu vào Secret của repo bạn; không gửi trong chat, README, commit hoặc issue. Không cần đưa mật khẩu TikTok cho bot.
 
@@ -73,9 +75,10 @@ Vào **Settings → Secrets and variables → Actions → Variables → New repo
 | Tên | Giá trị |
 | --- | --- |
 | `BOT_ENABLED` | `true` để bật; `false` để dừng. |
-| `MESSAGE` | Không bắt buộc. Câu mặc định cho người không có `message` riêng, ví dụ `🔥`. |
+| `MESSAGES_JSON` | Không bắt buộc. Mảng câu chung, ví dụ `["Giữ chuỗi nha 🔥", "Chấm chuỗi nè ✨"]`. Bỏ trống để dùng 12 câu trong `config.json`. |
+| `MESSAGE` | Tương thích cấu hình cũ: một câu cố định. Muốn dùng câu luân phiên thì để trống hoặc dùng `MESSAGES_JSON`. |
 
-Sau đó có thể chạy **Run workflow → send** để thử ngay. Các lần chạy trong cùng ngày vẫn dùng chung trạng thái chống trùng.
+Sau đó có thể chạy **Run workflow → send** để thử ngay. Lượt chạy tay tính vào khung giờ hiện tại và dùng chung chống trùng với lượt theo lịch. Chạy lại trong cùng khung vẫn bỏ qua người đã có lượt; sang khung tiếp theo được gửi câu tiếp theo.
 
 Không cần tạo thêm GitHub PAT. Workflow dùng `GITHUB_TOKEN` của chính repo để ghi trạng thái.
 
@@ -83,13 +86,15 @@ Không cần tạo thêm GitHub PAT. Workflow dùng `GITHUB_TOKEN` của chính 
 
 Sửa dòng `cron` trong `.github/workflows/TikTok-Streak.yml`. Lịch cron dùng UTC, Việt Nam nhanh hơn 7 giờ:
 
-| Giờ Việt Nam | Cron |
-| --- | --- |
-| 20:17 | `17 13 * * *` |
-| 21:17 | `17 14 * * *` |
-| 22:17 | `17 15 * * *` |
+| Khung | Giờ Việt Nam | Cron UTC |
+| --- | --- | --- |
+| Sáng | 08:17 | `17 1 * * *` |
+| Trưa | 12:17 | `17 5 * * *` |
+| Tối | 20:17 | `17 13 * * *` |
 
-GitHub có thể chạy trễ hoặc bỏ lượt khi hệ thống quá tải; giờ này là lịch yêu cầu, không bảo đảm chính xác đến phút. Xem lịch sử Actions để biết lần chạy thực tế. Có thể thêm một lượt dự phòng trước nửa đêm; chống trùng sẽ bỏ qua người đã có lượt gửi.
+Workflow gộp ba giờ bằng `17 1,5,13 * * *`. Chống trùng dùng khung giờ thực tế tại Việt Nam: sáng 00:00–11:59, trưa 12:00–17:59, tối 18:00–23:59. Nếu đổi lịch thì đặt một giờ trong mỗi khung. Có thể thêm lượt dự phòng trong cùng khung; người đã có lượt sẽ được bỏ qua.
+
+GitHub có thể chạy trễ hoặc bỏ lượt khi hệ thống quá tải; giờ này là lịch yêu cầu, không bảo đảm chính xác đến phút. Xem lịch sử Actions để biết lần chạy thực tế.
 
 ## Khi bot gặp lỗi
 
@@ -98,10 +103,12 @@ GitHub có thể chạy trễ hoặc bỏ lượt khi hệ thống quá tải; g
 | `DRAFT_NOT_EMPTY` | Cuộc chat có bản nháp. Tự xử lý bản nháp rồi chạy kiểm tra lại. |
 | `AUTH_REQUIRED` / `BOT_BLOCKED` | Bot dừng nếu TikTok yêu cầu đăng nhập hoặc CAPTCHA. Cập nhật phiên đăng nhập hợp lệ khi cần. |
 | Ghi trạng thái GitHub lỗi | Bot không bắt đầu gửi nếu chưa lưu được lượt gửi. |
-| Chưa xác nhận được sau khi bấm gửi, tin biến mất sau khi mở lại hoặc bị mất phiên | Ghi `uncertain`, không tự gửi lại trong ngày. Kiểm tra cuộc chat và tự rep nếu cần. Chỉ mở lại lượt gửi khi bạn đã xác nhận không có tin. |
+| Chưa xác nhận được sau khi bấm gửi, tin biến mất sau khi mở lại hoặc bị mất phiên | Ghi `uncertain`, không tự gửi lại trong cùng khung. Khung tiếp theo là một lượt riêng. Kiểm tra cuộc chat và tự rep nếu cần. |
 | Chưa tới bước bấm gửi mà lỗi | Lượt đó có thể thử lại ở lần chạy sau. |
 
-Không xóa nhánh `bot-state` giữa ngày: đó là dữ liệu dùng để tránh gửi trùng. Nhánh chỉ lưu mã SHA-256 từ tài khoản/người nhận, ngày và trạng thái, không lưu nội dung tin hay username ở dạng rõ.
+Không xóa nhánh `bot-state` giữa ngày: đó là dữ liệu dùng để tránh gửi trùng. Nhánh chỉ lưu mã SHA-256 từ tài khoản/người nhận, ngày, trạng thái từng khung và vị trí câu luân phiên, không lưu nội dung tin hay username ở dạng rõ.
+
+Trạng thái cũ chỉ có ngày được tự chuyển sang định dạng mới và giữ lượt cũ ở khung sáng của ngày đó; khung trưa/tối vẫn được chạy. Khi cập nhật, tạo lượt bằng **Run workflow trên nhánh main** để dùng code mới. Câu đầu được phân bố theo mã người nhận, các lượt tiếp theo luân phiên và không lặp liền nhau nếu danh sách có nhiều hơn một câu.
 
 ## Kiểm tra code
 
@@ -111,7 +118,7 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, tin hiện tạm nhưng không được lưu, mất phiên sau khi bấm gửi, workflow chạy lại và ngày Việt Nam qua nửa đêm.
+Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, tin hiện tạm nhưng không được lưu, mất phiên sau khi bấm gửi, ba khung gửi độc lập, chuyển trạng thái cũ, câu luân phiên qua các lần chạy và ngày Việt Nam qua nửa đêm.
 
 Mã nguồn đã được kiểm tra trên trang mô phỏng. Cần chạy `dry-run` bằng phiên TikTok của bạn để xác nhận giao diện thực tế trước khi bật bot. Nếu TikTok đổi HTML, có thể chỉnh các selector trong `lib/tiktok.js` hoặc ghi đè bằng trường `selectors` trong `config.json`.
 
