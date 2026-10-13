@@ -50,13 +50,14 @@ async function main() {
       try {
         if (!dryRun && await journal.blocked(key, day)) {
           report.skipped++;
-          console.log(`${label}: đã gửi hoặc đã thử gửi hôm nay, bỏ qua.`);
+          const previous = (await journal.load()).entries[key];
+          console.log(`${label}: ${previous.status === 'sent' ? 'đã thấy tin còn trong lịch sử hôm nay' : 'đã thử gửi hôm nay nhưng chưa xác nhận được'}; bỏ qua.`);
           continue;
         }
         await tiktok.selectRecipient(recipient.username, recipient.chatName);
         await tiktok.prepare(recipient.username);
+        report.verified++;
         if (dryRun) {
-          report.verified++;
           console.log(`${label}: đúng người nhận, ô soạn trống; chưa nhập hoặc gửi tin.`);
           continue;
         }
@@ -66,7 +67,7 @@ async function main() {
         await journal.finish(key, day, result ? 'sent' : 'uncertain');
         claimed = false;
         report[result ? 'sent' : 'uncertain']++;
-        console.log(`${label}: ${result ? 'đã thấy tin mới trên giao diện' : 'chưa xác nhận được, không tự gửi lại'}.`);
+        console.log(`${label}: ${result ? 'đã thấy tin mới còn trong lịch sử sau khi mở lại cuộc chat' : 'chưa xác nhận được trên lịch sử sau khi gửi, không tự gửi lại'}.`);
       } catch (error) {
         if (claimed) await journal.finish(key, day, attempted ? 'uncertain' : 'failed');
         report[attempted ? 'uncertain' : 'failed']++;

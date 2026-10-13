@@ -12,7 +12,7 @@ Bản custom từ [KurniawanSatria/TikTok-Streak](https://github.com/KurniawanSa
 - Mặc định bot **tắt**. Có chế độ `dry-run` chỉ kiểm tra, không nhập hay gửi tin.
 - Không xóa bản nháp có sẵn. Không công khai cookie hoặc danh sách người nhận trong code.
 
-Bot gửi một tin theo lịch cho danh sách được chọn, không phải AI trả lời nội dung trò chuyện. Người kia vẫn cần tương tác để duy trì chuỗi. Xác nhận gửi dựa trên tin mới xuất hiện trong giao diện và ô soạn đã trống, không phải cam kết giao thành công hoặc chuỗi chắc chắn tăng.
+Bot gửi một tin theo lịch cho danh sách được chọn, không phải AI trả lời nội dung trò chuyện. Người kia vẫn cần tương tác để duy trì chuỗi. Sau khi thấy tin mới và ô soạn trống, bot mở lại trang hộp thư, xác minh lại tài khoản/người nhận và kiểm tra tin vẫn còn trong lịch sử rồi mới ghi `sent`. Đây là xác nhận qua giao diện lịch sử, không phải biên nhận từ máy chủ hoặc cam kết chuỗi chắc chắn tăng.
 
 ## Cấu hình một lần trên GitHub
 
@@ -98,7 +98,7 @@ GitHub có thể chạy trễ hoặc bỏ lượt khi hệ thống quá tải; g
 | `DRAFT_NOT_EMPTY` | Cuộc chat có bản nháp. Tự xử lý bản nháp rồi chạy kiểm tra lại. |
 | `AUTH_REQUIRED` / `BOT_BLOCKED` | Bot dừng nếu TikTok yêu cầu đăng nhập hoặc CAPTCHA. Cập nhật phiên đăng nhập hợp lệ khi cần. |
 | Ghi trạng thái GitHub lỗi | Bot không bắt đầu gửi nếu chưa lưu được lượt gửi. |
-| Chưa xác nhận được sau khi bấm gửi | Không tự gửi lại trong ngày, tránh lặp. Kiểm tra cuộc chat và tự rep nếu cần. |
+| Chưa xác nhận được sau khi bấm gửi, tin biến mất sau khi mở lại hoặc bị mất phiên | Ghi `uncertain`, không tự gửi lại trong ngày. Kiểm tra cuộc chat và tự rep nếu cần. Chỉ mở lại lượt gửi khi bạn đã xác nhận không có tin. |
 | Chưa tới bước bấm gửi mà lỗi | Lượt đó có thể thử lại ở lần chạy sau. |
 
 Không xóa nhánh `bot-state` giữa ngày: đó là dữ liệu dùng để tránh gửi trùng. Nhánh chỉ lưu mã SHA-256 từ tài khoản/người nhận, ngày và trạng thái, không lưu nội dung tin hay username ở dạng rõ.
@@ -111,7 +111,7 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, mất xác nhận, workflow chạy lại và ngày Việt Nam qua nửa đêm.
+Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, tin hiện tạm nhưng không được lưu, mất phiên sau khi bấm gửi, workflow chạy lại và ngày Việt Nam qua nửa đêm.
 
 Mã nguồn đã được kiểm tra trên trang mô phỏng. Cần chạy `dry-run` bằng phiên TikTok của bạn để xác nhận giao diện thực tế trước khi bật bot. Nếu TikTok đổi HTML, có thể chỉnh các selector trong `lib/tiktok.js` hoặc ghi đè bằng trường `selectors` trong `config.json`.
 
