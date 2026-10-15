@@ -45,6 +45,8 @@ Mẫu có danh sách câu riêng và gợi ý tên trong danh sách chat để t
 
 `chatName` chỉ giúp tìm nhanh. Bot luôn kiểm tra lại username bằng link hồ sơ ở đầu cuộc chat. Những người này cần có cuộc trò chuyện 1–1 trong hộp thư TikTok Web; bản này chưa gửi cho nhóm.
 
+Danh sách chat được đọc lại sau mỗi lần chọn vì TikTok có thể tải thêm hàng hoặc đổi thứ tự. Bot quét lại tối đa ba lượt trong giới hạn `navigationTimeoutMs`, chờ đầu chat và ô soạn sẵn sàng, rồi vẫn xác minh username trước khi gửi. Tên và vị trí hàng chỉ giúp tìm nhanh, không thay cho xác minh người nhận.
+
 Danh sách username đơn giản dùng chung các câu trong `config.json`. Trường `messages` riêng ghi đè danh sách chung. Nếu dùng trường cũ `message`, người đó tiếp tục nhận một câu cố định; chỉ dùng một trong hai trường. Mỗi danh sách nhận 1–1000 câu, mỗi câu 1–500 ký tự trên một dòng, tự loại câu trùng.
 
 Cookie cho phép truy cập phiên đăng nhập. Chỉ lưu vào Secret của repo bạn; không gửi trong chat, README, commit hoặc issue. Không cần đưa mật khẩu TikTok cho bot.
@@ -103,6 +105,8 @@ Chạy tay `send` vẫn được thực hiện ngay khi bạn yêu cầu, tính 
 | Kết quả | Cách xử lý |
 | --- | --- |
 | `DRAFT_NOT_EMPTY` | Cuộc chat có bản nháp. Tự xử lý bản nháp rồi chạy kiểm tra lại. |
+| `RECIPIENT_NOT_FOUND` | Chưa tìm được người trước khi bấm gửi. Kiểm tra username và cuộc chat 1–1 trên TikTok Web; log kèm số hàng/lượt quét để chẩn đoán, không in nội dung chat. |
+| `HISTORY_RECIPIENT_NOT_FOUND` | Đã bấm gửi nhưng không tìm lại được cuộc chat sau khi mở lại hộp thư. Giữ `uncertain`, không tự gửi lại trong cùng khung; kiểm tra tin thực tế trong TikTok. |
 | `AUTH_REQUIRED` / `BOT_BLOCKED` | Bot dừng nếu TikTok yêu cầu đăng nhập hoặc CAPTCHA. Cập nhật phiên đăng nhập hợp lệ khi cần. |
 | Ghi trạng thái GitHub lỗi | Bot không bắt đầu gửi nếu chưa lưu được lượt gửi. |
 | Chưa xác nhận được sau khi bấm gửi, tin biến mất sau khi mở lại hoặc bị mất phiên | Ghi `uncertain`, không tự gửi lại trong cùng khung. Khung tiếp theo là một lượt riêng. Kiểm tra cuộc chat và tự rep nếu cần. |
@@ -120,7 +124,7 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, tin hiện tạm nhưng không được lưu, mất phiên sau khi bấm gửi, ba khung gửi độc lập, chuyển trạng thái cũ, câu luân phiên qua các lần chạy, lịch bị trễ đến 01:03, lượt dự phòng không mở trình duyệt khi đã có lượt và khung đóng trước khi bấm gửi.
+Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự ngay khi chọn chat, danh sách tải thêm người, chat tải lâu hơn 2,5 giây, tìm lại chat sau gửi, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, tin hiện tạm nhưng không được lưu, mất phiên sau khi bấm gửi, ba khung gửi độc lập, chuyển trạng thái cũ, câu luân phiên qua các lần chạy, lịch bị trễ đến 01:03, lượt dự phòng không mở trình duyệt khi đã có lượt và khung đóng trước khi bấm gửi.
 
 Mã nguồn đã được kiểm tra trên trang mô phỏng. Cần chạy `dry-run` bằng phiên TikTok của bạn để xác nhận giao diện thực tế trước khi bật bot. Nếu TikTok đổi HTML, có thể chỉnh các selector trong `lib/tiktok.js` hoặc ghi đè bằng trường `selectors` trong `config.json`.
 

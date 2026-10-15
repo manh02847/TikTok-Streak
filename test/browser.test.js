@@ -18,7 +18,10 @@ const fixture = `<!doctype html><html><head><meta charset="utf-8"></head><body>
 <script>
 window.sent = __SERVER_SENT__;
 window.histories = __SERVER_HISTORY__;
-window.current = 'alice';
+window.current = __INITIAL_CURRENT__;
+document.querySelector('[data-e2e="chat-header"] a').href = 'https://www.tiktok.com/@' + window.current;
+window.selectionDelay = __SELECTION_DELAY__;
+window.reorderOnSelect = __REORDER_ON_SELECT__;
 window.ignoreSend = false;
 window.switchOnInput = false;
 function renderHistory() {
@@ -37,8 +40,15 @@ for (const button of document.querySelectorAll('[data-handle]')) button.onclick 
     document.querySelector('[data-e2e="chat-header"] a').href = 'https://www.tiktok.com/@' + window.current;
     document.querySelector('[contenteditable]').innerText = '';
     renderHistory();
-  }, 120);
+    if (window.reorderOnSelect && window.current === 'alice') document.querySelector('aside').prepend(document.querySelector('[data-handle="bob"]'));
+  }, button.dataset.handle === 'bob' ? window.selectionDelay : 120);
 };
+const bobRow = document.querySelector('[data-handle="bob"]');
+if (__LIST_DELAY__ > 0) {
+  bobRow.remove();
+  setTimeout(() => document.querySelector('aside').append(bobRow), __LIST_DELAY__);
+}
+if (__HIDE_BOB__) bobRow.remove();
 const editor = document.querySelector('[contenteditable]');
 editor.oninput = () => {
   if (window.switchOnInput) {
@@ -62,10 +72,10 @@ editor.onkeydown = async event => {
 };
 </script></body></html>`;
 
-async function setup(iframe = false, outcome = 'saved') {
+async function setup(iframe = false, outcome = 'saved', options = {}) {
   const browser = await chromium.launch({ headless: true, ...(process.env.TEST_CHROMIUM_EXECUTABLE ? { executablePath: process.env.TEST_CHROMIUM_EXECUTABLE } : {}) });
   const page = await browser.newPage();
-  const server = { histories: { alice: ['🔥'], bob: ['🔥'] }, sent: [], attempts: 0, loggedOut: false };
+  const server = { histories: { alice: ['🔥'], bob: ['🔥'], carol: ['🔥'] }, sent: [], attempts: 0, loggedOut: false, loads: 0 };
   await page.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -83,11 +93,18 @@ async function setup(iframe = false, outcome = 'saved') {
     }
     if (url.pathname === '/login') return route.fulfill({ contentType: 'text/html', body: '<h1>Log in to TikTok</h1>' });
     if (server.loggedOut) return route.fulfill({ contentType: 'text/html', body: '<div role="dialog"><h1>Log in to TikTok</h1></div>' });
-    const body = fixture.replace('__SERVER_SENT__', JSON.stringify(server.sent)).replace('__SERVER_HISTORY__', JSON.stringify(server.histories));
+    if (url.pathname !== '/test-frame') server.loads++;
+    const listDelay = options.listDelay || (server.loads > 1 ? options.historyListDelay || 0 : 0);
+    const body = fixture.replace('__SERVER_SENT__', JSON.stringify(server.sent)).replace('__SERVER_HISTORY__', JSON.stringify(server.histories))
+      .replace('__INITIAL_CURRENT__', JSON.stringify(options.reorderOnSelect ? 'carol' : 'alice'))
+      .replace('__SELECTION_DELAY__', JSON.stringify(options.selectionDelay || 120))
+      .replace('__REORDER_ON_SELECT__', JSON.stringify(!!options.reorderOnSelect))
+      .replaceAll('__LIST_DELAY__', JSON.stringify(listDelay))
+      .replace('__HIDE_BOB__', JSON.stringify(!!options.historyHideBob && server.loads > 1));
     if (url.pathname === '/test-frame') return route.fulfill({ contentType: 'text/html', body });
     return route.fulfill({ contentType: 'text/html', body: iframe ? '<nav><a href="https://www.tiktok.com/@owner">Profile</a></nav><iframe src="https://www.tiktok.com/test-frame" style="width:100%;height:700px"></iframe>' : body });
   });
-  const adapter = new TikTok(page, { accountUsername: 'owner', targetUrl: 'https://www.tiktok.com/messages?lang=en', navigationTimeoutMs: 3000, confirmationTimeoutMs: 600, maxScrolls: 3, sendKey: 'Enter' });
+  const adapter = new TikTok(page, { accountUsername: 'owner', targetUrl: 'https://www.tiktok.com/messages?lang=en', navigationTimeoutMs: options.navigationTimeoutMs || 3000, confirmationTimeoutMs: 600, maxScrolls: 3, sendKey: 'Enter' });
   await adapter.open();
   return { browser, page, adapter, server };
 }
@@ -202,5 +219,64 @@ test('không mở lại trang giữa lúc yêu cầu gửi còn đang xử lý',
     assert.equal(result, true, JSON.stringify({ server, history: await adapter.frame.evaluate(messageSnapshot, { selectors: adapter.selectors, message: '🔥' }) }));
     assert.equal(server.attempts, 1);
     assert.deepEqual(server.sent, [{ recipient: 'alice', message: '🔥' }]);
+  } finally { await browser.close(); }
+});
+
+test('danh sách tải thêm người sau hàng đầu tiên vẫn tìm được người nhận', async () => {
+  const { browser, adapter, server } = await setup(false, 'saved', { listDelay: 300 });
+  try {
+    await adapter.selectRecipient('bob');
+    await adapter.prepare('bob');
+    assert.equal(server.attempts, 0);
+  } finally { await browser.close(); }
+});
+
+test('danh sách đổi thứ tự khi chọn chat không làm bỏ mất người nhận', async () => {
+  const { browser, adapter, server } = await setup(false, 'saved', { reorderOnSelect: true });
+  try {
+    await adapter.selectRecipient('bob');
+    await adapter.prepare('bob');
+    assert.equal(server.attempts, 0);
+  } finally { await browser.close(); }
+});
+
+test('chat tải lâu hơn 2,5 giây được chờ trong giới hạn điều hướng', async () => {
+  const { browser, adapter, server } = await setup(false, 'saved', { selectionDelay: 3200, navigationTimeoutMs: 15000 });
+  try {
+    await adapter.selectRecipient('bob');
+    await adapter.prepare('bob');
+    assert.equal(server.attempts, 0);
+  } finally { await browser.close(); }
+});
+
+test('tìm lại chat tải chậm sau khi gửi chỉ bấm gửi một lần', async () => {
+  const { browser, adapter, server } = await setup(false, 'saved', { historyListDelay: 400 });
+  try {
+    await adapter.selectRecipient('bob');
+    assert.equal(await adapter.send('bob', '🔥', () => {}), true);
+    assert.equal(server.attempts, 1);
+    assert.deepEqual(server.sent, [{ recipient: 'bob', message: '🔥' }]);
+  } finally { await browser.close(); }
+});
+
+test('chat mất sau gửi báo lỗi bước lịch sử và giữ uncertain để tránh gửi trùng', async () => {
+  const { browser, adapter, server } = await setup(false, 'saved', { historyHideBob: true, navigationTimeoutMs: 1800 });
+  let state = { version: 2, entries: {} };
+  const journal = new Journal({ load: async () => structuredClone(state), save: async next => { state = structuredClone(next); } });
+  const key = recipientKey('owner', 'bob');
+  try {
+    await adapter.selectRecipient('bob');
+    await journal.claim(key, '2026-10-15', 'evening', 1);
+    let attempted = false;
+    await assert.rejects(adapter.send('bob', '🔥', () => { attempted = true; }), error => {
+      assert.equal(error.code, 'HISTORY_RECIPIENT_NOT_FOUND');
+      assert.equal(error.search.rows, 1);
+      assert.ok(error.search.clicks > 0);
+      return true;
+    });
+    assert.equal(attempted, true);
+    await journal.finish(key, '2026-10-15', 'uncertain', 'evening');
+    assert.equal(await journal.claim(key, '2026-10-15', 'evening'), false);
+    assert.equal(server.attempts, 1);
   } finally { await browser.close(); }
 });

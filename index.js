@@ -97,7 +97,8 @@ async function main() {
           break;
         }
         report[attempted ? 'uncertain' : 'failed']++;
-        console.log(`${label}: ${error.code || 'CHECK_FAILED'}; không gửi tiếp cho người này.`);
+        console.log(`${label}: ${error.code || 'CHECK_FAILED'}; ${attempted ? 'đã bấm gửi nhưng chưa xác nhận được lịch sử; không tự gửi lại trong khung này' : 'chưa bấm gửi; không gửi tiếp cho người này'}.`);
+        if (error.search) console.log(`${label}: tìm chat: tối đa ${error.search.rows} hàng hiển thị; ${error.search.clicks} lần chọn; ${error.search.passes} lượt quét; ${error.search.scrolls} lần cuộn.`);
         if (error.code === 'AUTH_REQUIRED' || error.code === 'BOT_BLOCKED') throw error;
       }
       if (!dryRun) await new Promise(resolve => setTimeout(resolve, config.betweenRecipientsMs));
