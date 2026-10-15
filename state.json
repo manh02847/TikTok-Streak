@@ -21,7 +21,7 @@
       "slots": {
         "morning": "sent",
         "noon": "sent",
-        "evening": "reserved"
+        "evening": "sent"
       },
       "lastMessageIndex": 7
     },
