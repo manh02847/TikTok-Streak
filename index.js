@@ -1,11 +1,13 @@
 const fs = require('node:fs');
 const { loadConfig, loadCookies, requireSessionForUrl, recipientKey, sendWindow, chooseMessage } = require('./lib/config');
 const { LocalState, GitHubState, Journal } = require('./lib/state');
+const { checkSchedule, windowStillOpen } = require('./lib/schedule');
 const { TikTok } = require('./lib/tiktok');
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const checkConfig = process.argv.includes('--check-config');
+  const automatic = process.env.GITHUB_EVENT_NAME === 'schedule' && !dryRun && !checkConfig;
   const config = loadConfig();
   if (!config.enabled && !dryRun && !checkConfig) {
     console.log('Bot đang tắt. Cấu hình rồi bật BOT_ENABLED trong GitHub Actions Variables.');
@@ -26,6 +28,18 @@ async function main() {
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Kiểm tra cấu hình\n\n${summary.replaceAll('\n', '\n\n')}\n`);
     return;
   }
+  const store = process.env.GITHUB_ACTIONS === 'true'
+    ? new GitHubState(process.env.GITHUB_REPOSITORY, process.env.GITHUB_TOKEN, process.env.GITHUB_SHA)
+    : new LocalState('state.json');
+  const journal = new Journal(store);
+  let scheduledWindow;
+  if (automatic) {
+    const decision = await checkSchedule(config, journal);
+    console.log(decision.reason);
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Kiểm tra trước khi mở TikTok\n\n${decision.reason}\n`);
+    if (!decision.proceed) return;
+    scheduledWindow = decision.window;
+  }
   const { chromium } = require('playwright');
   const browser = await chromium.launch({ headless: config.headless });
   const report = { verified: 0, sent: 0, skipped: 0, failed: 0, uncertain: 0 };
@@ -38,13 +52,13 @@ async function main() {
     await tiktok.open();
     await tiktok.verifyAccount(config.accountUsername);
     ready = true;
-    const store = process.env.GITHUB_ACTIONS === 'true'
-      ? new GitHubState(process.env.GITHUB_REPOSITORY, process.env.GITHUB_TOKEN, process.env.GITHUB_SHA)
-      : new LocalState('state.json');
-    const journal = new Journal(store);
     for (const recipient of config.recipients) {
+      if (automatic && !windowStillOpen(config.timeZone, scheduledWindow)) {
+        console.log('Khung tự động đã đóng trong lúc chạy; dừng, không gửi bù sang khung khác.');
+        break;
+      }
       const key = recipientKey(config.accountUsername, recipient.username);
-      const { day, slot, label: slotLabel } = sendWindow(config.timeZone);
+      const { day, slot, label: slotLabel } = scheduledWindow || sendWindow(config.timeZone);
       const label = key.slice(0, 8);
       let claimed = false;
       let attempted = false;
@@ -64,15 +78,24 @@ async function main() {
         }
         const previous = (await journal.load()).entries[key];
         const selected = chooseMessage(config, recipient, previous?.lastMessageIndex, key);
+        if (automatic && !windowStillOpen(config.timeZone, scheduledWindow)) break;
         if (!await journal.claim(key, day, slot, selected.index)) { report.skipped++; continue; }
         claimed = true;
-        const result = await tiktok.send(recipient.username, selected.message, () => { attempted = true; });
+        const result = await tiktok.send(recipient.username, selected.message, () => {
+          if (automatic && !windowStillOpen(config.timeZone, scheduledWindow)) throw Object.assign(new Error('Khung tự động đã đóng trước khi bấm gửi.'), { code: 'SCHEDULE_CLOSED' });
+          attempted = true;
+        });
         await journal.finish(key, day, result ? 'sent' : 'uncertain', slot);
         claimed = false;
         report[result ? 'sent' : 'uncertain']++;
         console.log(`${label}: khung ${slotLabel} ${day}; ${result ? 'đã thấy tin mới còn trong lịch sử sau khi mở lại cuộc chat' : 'chưa xác nhận được trên lịch sử sau khi gửi, không tự gửi lại trong khung này'}.`);
       } catch (error) {
         if (claimed) await journal.finish(key, day, attempted ? 'uncertain' : 'failed', slot);
+        if (error.code === 'SCHEDULE_CLOSED') {
+          report.skipped++;
+          console.log(`${label}: khung tự động đã đóng; chưa bấm gửi. Có thể có bản nháp do bot vừa nhập; dừng lượt này.`);
+          break;
+        }
         report[attempted ? 'uncertain' : 'failed']++;
         console.log(`${label}: ${error.code || 'CHECK_FAILED'}; không gửi tiếp cho người này.`);
         if (error.code === 'AUTH_REQUIRED' || error.code === 'BOT_BLOCKED') throw error;

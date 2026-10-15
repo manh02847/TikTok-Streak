@@ -7,7 +7,7 @@ Bản custom từ [KurniawanSatria/TikTok-Streak](https://github.com/KurniawanSa
 - Chọn nhiều người bằng username TikTok, không gửi theo thứ tự cuộc chat.
 - Xác minh tài khoản đăng nhập và username trong đầu cuộc chat trước khi gõ/gửi.
 - Mặc định có **12 câu ngắn luân phiên**; mỗi người giữ vị trí câu riêng qua các lần chạy. Có thể đặt danh sách câu riêng cho từng người.
-- Lịch mặc định khoảng **08:17, 12:17 và 20:17 mỗi ngày theo giờ Việt Nam**.
+- Mục tiêu gửi từ **08:17, 12:17 và 20:17 mỗi ngày theo giờ Việt Nam**; có lượt kiểm tra dự phòng mỗi giờ trong ba khung. Lượt bị GitHub kích trễ ra ngoài giờ được bỏ qua.
 - Lưu chống trùng trên nhánh `bot-state`: mỗi người có một lượt cho từng khung sáng, trưa, tối; tối đa ba khung mỗi ngày.
 - Mặc định bot **tắt**. Có chế độ `dry-run` chỉ kiểm tra, không nhập hay gửi tin.
 - Không xóa bản nháp có sẵn. Không công khai cookie hoặc danh sách người nhận trong code.
@@ -84,17 +84,19 @@ Không cần tạo thêm GitHub PAT. Workflow dùng `GITHUB_TOKEN` của chính 
 
 ## Đổi giờ
 
-Sửa dòng `cron` trong `.github/workflows/TikTok-Streak.yml`. Lịch cron dùng UTC, Việt Nam nhanh hơn 7 giờ:
+GitHub Actions có thể kích lịch trễ hoặc bỏ lượt. Bot kiểm tra giờ Việt Nam thực tế trước khi cài/mở trình duyệt và ngay trước khi bấm gửi. Ba khung tự động hiện tại:
 
-| Khung | Giờ Việt Nam | Cron UTC |
+| Khung | Khoảng được gửi theo giờ Việt Nam | Các giờ kiểm tra dự phòng |
 | --- | --- | --- |
-| Sáng | 08:17 | `17 1 * * *` |
-| Trưa | 12:17 | `17 5 * * *` |
-| Tối | 20:17 | `17 13 * * *` |
+| Sáng | 08:17–11:59 | 08:17, 09:17, 10:17, 11:17 |
+| Trưa | 12:17–17:59 | 12:17, 13:17, 14:17, 15:17, 16:17, 17:17 |
+| Tối | 20:17–22:59 | 20:17, 21:17, 22:17 |
 
-Workflow gộp ba giờ bằng `17 1,5,13 * * *`. Chống trùng dùng khung giờ thực tế tại Việt Nam: sáng 00:00–11:59, trưa 12:00–17:59, tối 18:00–23:59. Nếu đổi lịch thì đặt một giờ trong mỗi khung. Có thể thêm lượt dự phòng trong cùng khung; người đã có lượt sẽ được bỏ qua.
+Workflow dùng cron UTC `17 1-10,13-15 * * *`. Có tối đa 13 lượt kiểm tra nhẹ mỗi ngày, nhưng mỗi người vẫn tối đa một lần thử gửi cho mỗi khung. Nếu cả danh sách đã có lượt, bot bỏ qua trước khi cài/mở trình duyệt hoặc đăng nhập TikTok. `sent`, `reserved` và `uncertain` đều chặn thử lại trong cùng khung; lỗi trước khi bấm gửi vẫn có thể thử ở lượt dự phòng. Không gửi bù khung cũ hoặc bù qua nửa đêm.
 
-GitHub có thể chạy trễ hoặc bỏ lượt khi hệ thống quá tải; giờ này là lịch yêu cầu, không bảo đảm chính xác đến phút. Xem lịch sử Actions để biết lần chạy thực tế.
+Muốn đổi lịch, sửa cả khoảng cho phép trong `lib/schedule.js` và cron tương ứng trong `.github/workflows/TikTok-Streak.yml`. Việt Nam nhanh hơn UTC 7 giờ. Tên lượt chạy phân biệt **Tự động · kiểm tra khung gửi** với **Chạy tay**. Dấu xanh của lượt kiểm tra có thể chỉ là bỏ qua vì đã gửi hoặc ngoài giờ; mở Summary để xem lý do.
+
+Chạy tay `send` vẫn được thực hiện ngay khi bạn yêu cầu, tính vào khung sáng 00:00–11:59, trưa 12:00–17:59 hoặc tối 18:00–23:59 và dùng chung dữ liệu chống trùng. Dữ liệu lượt cũ được giữ nguyên; cập nhật lịch không tự mở lại lượt đã gửi. GitHub Actions không bảo đảm chạy chính xác đến phút, kể cả có lượt dự phòng.
 
 ## Khi bot gặp lỗi
 
@@ -118,7 +120,7 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, tin hiện tạm nhưng không được lưu, mất phiên sau khi bấm gửi, ba khung gửi độc lập, chuyển trạng thái cũ, câu luân phiên qua các lần chạy và ngày Việt Nam qua nửa đêm.
+Các bài kiểm tra dùng trang mô phỏng nội bộ, không gửi tin thật: trùng tên hiển thị, đổi thứ tự chat, iframe, sai tài khoản, bản nháp, chat đổi khi đang gõ, tin hiện tạm nhưng không được lưu, mất phiên sau khi bấm gửi, ba khung gửi độc lập, chuyển trạng thái cũ, câu luân phiên qua các lần chạy, lịch bị trễ đến 01:03, lượt dự phòng không mở trình duyệt khi đã có lượt và khung đóng trước khi bấm gửi.
 
 Mã nguồn đã được kiểm tra trên trang mô phỏng. Cần chạy `dry-run` bằng phiên TikTok của bạn để xác nhận giao diện thực tế trước khi bật bot. Nếu TikTok đổi HTML, có thể chỉnh các selector trong `lib/tiktok.js` hoặc ghi đè bằng trường `selectors` trong `config.json`.
 
