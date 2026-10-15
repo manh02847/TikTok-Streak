@@ -11,9 +11,10 @@
       "day": "2026-10-15",
       "slots": {
         "morning": "sent",
-        "noon": "sent"
+        "noon": "sent",
+        "evening": "reserved"
       },
-      "lastMessageIndex": 3
+      "lastMessageIndex": 4
     },
     "074c72bb354b33effe2d8cd11fd96fa0c7d4bbd76f9e00da1a7a9f4a6dd07f0f": {
       "day": "2026-10-15",
