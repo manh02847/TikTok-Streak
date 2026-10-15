@@ -6,7 +6,7 @@ Bản custom từ [KurniawanSatria/TikTok-Streak](https://github.com/KurniawanSa
 
 - Chọn nhiều người bằng username TikTok, không gửi theo thứ tự cuộc chat.
 - Xác minh tài khoản đăng nhập và username trong đầu cuộc chat trước khi gõ/gửi.
-- Mặc định có **12 câu ngắn luân phiên**; mỗi người giữ vị trí câu riêng qua các lần chạy. Có thể đặt danh sách câu riêng cho từng người.
+- Các câu ngắn được luân phiên; mỗi người giữ vị trí câu riêng qua các lần chạy. Có thể đặt danh sách câu riêng cho từng người, tối đa 1000 câu mỗi danh sách.
 - Mục tiêu gửi từ **08:17, 12:17 và 20:17 mỗi ngày theo giờ Việt Nam**; có lượt kiểm tra dự phòng mỗi giờ trong ba khung. Lượt bị GitHub kích trễ ra ngoài giờ được bỏ qua.
 - Lưu chống trùng trên nhánh `bot-state`: mỗi người có một lượt cho từng khung sáng, trưa, tối; tối đa ba khung mỗi ngày.
 - Mặc định bot **tắt**. Có chế độ `dry-run` chỉ kiểm tra, không nhập hay gửi tin.
@@ -45,7 +45,7 @@ Mẫu có danh sách câu riêng và gợi ý tên trong danh sách chat để t
 
 `chatName` chỉ giúp tìm nhanh. Bot luôn kiểm tra lại username bằng link hồ sơ ở đầu cuộc chat. Những người này cần có cuộc trò chuyện 1–1 trong hộp thư TikTok Web; bản này chưa gửi cho nhóm.
 
-Danh sách username đơn giản dùng chung 12 câu trong `config.json`. Trường `messages` riêng ghi đè danh sách chung. Nếu dùng trường cũ `message`, người đó tiếp tục nhận một câu cố định; chỉ dùng một trong hai trường. Mỗi danh sách nhận 1–50 câu, mỗi câu 1–500 ký tự trên một dòng, tự loại câu trùng.
+Danh sách username đơn giản dùng chung các câu trong `config.json`. Trường `messages` riêng ghi đè danh sách chung. Nếu dùng trường cũ `message`, người đó tiếp tục nhận một câu cố định; chỉ dùng một trong hai trường. Mỗi danh sách nhận 1–1000 câu, mỗi câu 1–500 ký tự trên một dòng, tự loại câu trùng.
 
 Cookie cho phép truy cập phiên đăng nhập. Chỉ lưu vào Secret của repo bạn; không gửi trong chat, README, commit hoặc issue. Không cần đưa mật khẩu TikTok cho bot.
 
@@ -75,7 +75,7 @@ Vào **Settings → Secrets and variables → Actions → Variables → New repo
 | Tên | Giá trị |
 | --- | --- |
 | `BOT_ENABLED` | `true` để bật; `false` để dừng. |
-| `MESSAGES_JSON` | Không bắt buộc. Mảng câu chung, ví dụ `["Giữ chuỗi nha 🔥", "Chấm chuỗi nè ✨"]`. Bỏ trống để dùng 12 câu trong `config.json`. |
+| `MESSAGES_JSON` | Không bắt buộc. Mảng câu chung, ví dụ `["Giữ chuỗi nha 🔥", "Chấm chuỗi nè ✨"]`. Bỏ trống để dùng các câu trong `config.json`. |
 | `MESSAGE` | Tương thích cấu hình cũ: một câu cố định. Muốn dùng câu luân phiên thì để trống hoặc dùng `MESSAGES_JSON`. |
 
 Sau đó có thể chạy **Run workflow → send** để thử ngay. Lượt chạy tay tính vào khung giờ hiện tại và dùng chung chống trùng với lượt theo lịch. Chạy lại trong cùng khung vẫn bỏ qua người đã có lượt; sang khung tiếp theo được gửi câu tiếp theo.
