@@ -10,9 +10,10 @@
     "e44a9fad47ca5bc087a0b7c816147e672f6f9d89cdce9e12b8dd5848c6c881ef": {
       "day": "2026-10-19",
       "slots": {
-        "noon": "sent"
+        "noon": "sent",
+        "evening": "reserved"
       },
-      "lastMessageIndex": 8
+      "lastMessageIndex": 9
     },
     "074c72bb354b33effe2d8cd11fd96fa0c7d4bbd76f9e00da1a7a9f4a6dd07f0f": {
       "day": "2026-10-19",
