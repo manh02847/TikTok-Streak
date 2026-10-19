@@ -18,7 +18,7 @@
       "day": "2026-10-19",
       "slots": {
         "noon": "sent",
-        "evening": "reserved"
+        "evening": "sent"
       },
       "lastMessageIndex": 12
     },
