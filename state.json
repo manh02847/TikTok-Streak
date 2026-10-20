@@ -16,12 +16,11 @@
       "lastMessageIndex": 9
     },
     "074c72bb354b33effe2d8cd11fd96fa0c7d4bbd76f9e00da1a7a9f4a6dd07f0f": {
-      "day": "2026-10-19",
+      "day": "2026-10-20",
       "slots": {
-        "noon": "sent",
-        "evening": "sent"
+        "noon": "reserved"
       },
-      "lastMessageIndex": 12
+      "lastMessageIndex": 13
     },
     "b1aea13b45592546d31db9438dbaa037e3720691efb2c50c5bd668c3b9b05957": {
       "day": "2026-10-19",
